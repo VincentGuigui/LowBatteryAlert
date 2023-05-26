@@ -142,7 +142,7 @@ namespace LowBatteryAlert
                 {
                     hasAlert = true;
                     notifyIcon.Icon = Resources.LowBatteryAlert_red;
-                    if (powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
+                    if (!powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
                     {
                         notifyIcon.ShowBalloonTip(30000,
                             "Low Battery", $"Battery level is {level.ToString("F2")}%.",
