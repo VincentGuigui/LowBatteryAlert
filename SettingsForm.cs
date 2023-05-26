@@ -44,7 +44,12 @@ namespace LowBatteryAlert
 
         private double GetBatteryLevel(Battery battery)
         {
-            var report = battery.GetReport();
+            return GetBatteryLevel(battery, out _); 
+        }
+
+        private double GetBatteryLevel(Battery battery, out BatteryReport report)
+        {
+            report = battery.GetReport();
             var max = Convert.ToDouble(report.FullChargeCapacityInMilliwattHours);
             var level = Convert.ToDouble(report.RemainingCapacityInMilliwattHours);
             return (level / max) * 100d;
@@ -129,6 +134,7 @@ namespace LowBatteryAlert
         private void timer_Tick(object sender, EventArgs e)
         {
             bool hasAlert = false;
+            PowerStatus powerStatus = SystemInformation.PowerStatus;
             foreach (var battery in systemBatteries)
             {
                 var level = GetBatteryLevel(battery);
@@ -136,14 +142,16 @@ namespace LowBatteryAlert
                 {
                     hasAlert = true;
                     notifyIcon.Icon = Resources.LowBatteryAlert_red;
-                    notifyIcon.ShowBalloonTip(30000,
-                        "Low Battery", $"Battery level is {level.ToString("F2")}%.",
-                        ToolTipIcon.Info);
+                    if (powerStatus.BatteryChargeStatus != BatteryChargeStatus.Charging)
+                    {
+                        notifyIcon.ShowBalloonTip(30000,
+                            "Low Battery", $"Battery level is {level.ToString("F2")}%.",
+                            ToolTipIcon.Info);
+                    }
                 }
             }
             if (!hasAlert)
             {
-                PowerStatus powerStatus = SystemInformation.PowerStatus;
                 float globalBatteryLevel = powerStatus.BatteryLifePercent;
                 if (globalBatteryLevel < 15)
                     notifyIcon.Icon = Resources.LowBatteryAlert_red;
