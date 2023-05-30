@@ -1,5 +1,4 @@
 using LowBatteryAlert.Properties;
-using System.Configuration;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Power;
 
@@ -44,7 +43,7 @@ namespace LowBatteryAlert
 
         private double GetBatteryLevel(Battery battery)
         {
-            return GetBatteryLevel(battery, out _); 
+            return GetBatteryLevel(battery, out _);
         }
 
         private double GetBatteryLevel(Battery battery, out BatteryReport report)
@@ -135,31 +134,40 @@ namespace LowBatteryAlert
         {
             bool hasAlert = false;
             PowerStatus powerStatus = SystemInformation.PowerStatus;
-            foreach (var battery in systemBatteries)
+            string batteriesLevel = "";
+            int i = 0;
+            foreach (var battery in systemBatteries.OrderBy(b => b.DeviceId))
             {
                 var level = GetBatteryLevel(battery);
+                if (systemBatteries.Count > 1)
+                    batteriesLevel += $"Battery {i + 1}: {level.ToString("F0")}%\n";
+                else
+                    batteriesLevel = $"{level.ToString("F0")}%\n";
                 if (level <= batterySettings[battery.DeviceId])
                 {
                     hasAlert = true;
                     notifyIcon.Icon = Resources.LowBatteryAlert_red;
+
                     if (!powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
                     {
                         notifyIcon.ShowBalloonTip(30000,
-                            "Low Battery", $"Battery level is {level.ToString("F2")}%.",
-                            ToolTipIcon.Info);
+                            "Low Battery Alert", $"Battery level is {level.ToString("F0")}%.",
+                            ToolTipIcon.Warning);
                     }
                 }
+                i++;
             }
+            notifyIcon.BalloonTipText = notifyIcon.Text = Application.ProductName + ":\n" + batteriesLevel;
             if (!hasAlert)
             {
                 float globalBatteryLevel = powerStatus.BatteryLifePercent;
-                if (globalBatteryLevel < 15)
+                if (globalBatteryLevel < .15)
                     notifyIcon.Icon = Resources.LowBatteryAlert_red;
-                if (globalBatteryLevel < 35)
+                if (globalBatteryLevel < .35)
                     notifyIcon.Icon = Resources.LowBatteryAlert_25;
-                else if (globalBatteryLevel < 65)
+                else if (globalBatteryLevel < .65)
                     notifyIcon.Icon = Resources.LowBatteryAlert_50;
-                else if (globalBatteryLevel < 85)
+                else if (globalBatteryLevel < .85)
                     notifyIcon.Icon = Resources.LowBatteryAlert_75;
                 else
                     notifyIcon.Icon = Resources.LowBatteryAlert_100;
