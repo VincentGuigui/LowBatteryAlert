@@ -100,7 +100,7 @@ namespace LowBatteryAlert
                 (acc, next) => acc + next.Key + ":::" + next.Value + "|||");
             Properties.Settings.Default.Alerts = serializedAlerts;
             Properties.Settings.Default.Save();
-            timer_Tick(null, null);
+            timer_Tick(this, new EventArgs());
         }
 
         private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -180,13 +180,14 @@ namespace LowBatteryAlert
             var battery = systemBatteries.SingleOrDefault(b => b.DeviceId == lstBatteries.SelectedItem?.ToString());
             if (battery != null)
                 lblCurrentLevel.Text = GetBatteryLevel(battery).ToString("F2") + "%";
-            numAlertLevel.Value = batterySettings[lstBatteries.SelectedItem?.ToString()];
-
+            if (lstBatteries.SelectedItem != null)
+                numAlertLevel.Value = batterySettings[lstBatteries.SelectedItem.ToString()];
         }
 
         private void numAlertLevel_ValueChanged(object sender, EventArgs e)
         {
-            batterySettings[lstBatteries.SelectedItem.ToString()] = (int)numAlertLevel.Value;
+            if (lstBatteries.SelectedItem != null)
+                batterySettings[lstBatteries.SelectedItem.ToString()] = (int)numAlertLevel.Value;
         }
 
         private void contextMenuStrip_ItemClicked(object sender, ToolStripItemClickedEventArgs e)

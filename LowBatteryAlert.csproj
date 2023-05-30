@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+    <PreserveCompilationContext>false</PreserveCompilationContext>
     <LangVersion>10</LangVersion>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
@@ -11,6 +13,14 @@
     <UseWPF>False</UseWPF>
     <Title>Low Battery Alert</Title>
     <PackageIcon>LowBatteryAlert.png</PackageIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +34,7 @@
     <Reference Include="Windows">
       <HintPath>..\..\..\Program Files (x86)\Windows Kits\10\UnionMetadata\Windows.winmd</HintPath>
       <IsWinMDFile>true</IsWinMDFile>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
 
