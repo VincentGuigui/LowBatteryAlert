@@ -43,6 +43,7 @@
             label2 = new Label();
             label3 = new Label();
             lblCurrentLevel = new Label();
+            chAutoLaunch = new CheckBox();
             ((System.ComponentModel.ISupportInitialize)numAlertLevel).BeginInit();
             contextMenuStrip.SuspendLayout();
             SuspendLayout();
@@ -162,6 +163,16 @@
             lblCurrentLevel.TabIndex = 8;
             lblCurrentLevel.Text = "%";
             // 
+            // chAutoLaunch
+            // 
+            chAutoLaunch.AutoSize = true;
+            chAutoLaunch.Location = new Point(17, 177);
+            chAutoLaunch.Name = "chAutoLaunch";
+            chAutoLaunch.Size = new Size(334, 36);
+            chAutoLaunch.TabIndex = 9;
+            chAutoLaunch.Text = "Launch at Windows startup";
+            chAutoLaunch.UseVisualStyleBackColor = true;
+            // 
             // SettingsForm
             // 
             AcceptButton = btnOK;
@@ -169,6 +180,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = btnCancel;
             ClientSize = new Size(774, 229);
+            Controls.Add(chAutoLaunch);
             Controls.Add(numAlertLevel);
             Controls.Add(label1);
             Controls.Add(btnCancel);
@@ -206,5 +218,6 @@
         private ContextMenuStrip contextMenuStrip;
         private ToolStripMenuItem toolStripMenuItemSettings;
         private ToolStripMenuItem toolStripMenuItemClose;
+        private CheckBox chAutoLaunch;
     }
 }

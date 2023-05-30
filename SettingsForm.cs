@@ -1,4 +1,5 @@
 using LowBatteryAlert.Properties;
+using Microsoft.Win32;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Power;
 
@@ -91,6 +92,7 @@ namespace LowBatteryAlert
                     }
                 }
                 lstBatteries.SelectedIndex = 0;
+                chAutoLaunch.Checked = IsAutoLaunchStartup();
             }
         }
 
@@ -100,7 +102,26 @@ namespace LowBatteryAlert
                 (acc, next) => acc + next.Key + ":::" + next.Value + "|||");
             Properties.Settings.Default.Alerts = serializedAlerts;
             Properties.Settings.Default.Save();
+            SetAutoLaunchStartup();
             timer_Tick(this, new EventArgs());
+        }
+
+        private void SetAutoLaunchStartup()
+        {
+            RegistryKey rk = Registry.CurrentUser.OpenSubKey
+                ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+
+            if (chAutoLaunch.Checked)
+                rk.SetValue(Application.ProductName, Application.ExecutablePath);
+            else
+                rk.DeleteValue(Application.ProductName, false);
+        }
+
+        private bool IsAutoLaunchStartup()
+        {
+            RegistryKey rk = Registry.CurrentUser.OpenSubKey
+                ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            return rk.GetValue(Application.ProductName) != null;
         }
 
         private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e)
