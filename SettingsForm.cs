@@ -1,5 +1,6 @@
 using LowBatteryAlert.Properties;
 using Microsoft.Win32;
+using System.Diagnostics;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Power;
 
@@ -15,9 +16,9 @@ namespace LowBatteryAlert
             InitializeComponent();
         }
 
-        public void SettingsForm_Load(object sender, EventArgs e)
+        public async void SettingsForm_Load(object sender, EventArgs e)
         {
-            _ = LoadBatterySettingsAsync();
+            await LoadBatterySettingsAsync();
             timer_Tick(sender, e);
         }
 
@@ -57,6 +58,12 @@ namespace LowBatteryAlert
 
         private async Task LoadBatterySettingsAsync()
         {
+            if (!Properties.Settings.Default.Upgraded)
+            {
+                Properties.Settings.Default.Upgrade();
+                Properties.Settings.Default.Upgraded = true;
+                Properties.Settings.Default.Save();
+            }
             lstBatteries.Items.Clear();
             await GetSytemBatteriesListAsync();
             batterySettings.Clear();
@@ -112,7 +119,7 @@ namespace LowBatteryAlert
                 ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
 
             if (chAutoLaunch.Checked)
-                rk.SetValue(Application.ProductName, Application.ExecutablePath);
+                rk.SetValue(Application.ProductName, Process.GetCurrentProcess().MainModule.FileName);
             else
                 rk.DeleteValue(Application.ProductName, false);
         }
