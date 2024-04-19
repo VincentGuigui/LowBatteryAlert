@@ -1,15 +1,28 @@
 using LowBatteryAlert.Properties;
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.Reflection.Emit;
+using System.Windows.Forms;
+using Windows.ApplicationModel.UserDataAccounts.SystemAccess;
+using Windows.Devices.Bluetooth;
+using Windows.Devices.Bluetooth.GenericAttributeProfile;
+using Windows.Devices.Bluetooth.Rfcomm;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Power;
+using Windows.Networking.Sockets;
+using Windows.Phone.Devices.Power;
+using Windows.Storage.Streams;
+using Windows.UI.Xaml.Documents;
+using Battery = Windows.Devices.Power.Battery;
 
 namespace LowBatteryAlert
 {
     public partial class SettingsForm : Form
     {
-        Dictionary<string, int> batterySettings = new Dictionary<string, int>();
+        Dictionary<string, BatteryDevice> batteryDevices = new Dictionary<string, BatteryDevice>();
         List<Battery> systemBatteries = new List<Battery>();
+        List<DeviceInformation> btDevices = new List<DeviceInformation>();
+        List<DeviceInformation> btLEDevices = new List<DeviceInformation>();
 
         public SettingsForm()
         {
@@ -25,17 +38,34 @@ namespace LowBatteryAlert
         private async Task GetSytemBatteriesListAsync()
         {
             systemBatteries.Clear();
+            btDevices.Clear();
+            btLEDevices.Clear();
 
             // Find batteries 
-            var deviceInfo = await DeviceInformation.FindAllAsync(Battery.GetDeviceSelector());
-            if (deviceInfo.Count() == 0)
+            string btSelector = BluetoothDevice.GetDeviceSelector();
+            string btLESelector = BluetoothLEDevice.GetDeviceSelector();
+            string batterySelector = Battery.GetDeviceSelector();
+            var batteriesInfo = await DeviceInformation.FindAllAsync(batterySelector);
+            var btInfo = await DeviceInformation.FindAllAsync(btSelector);
+            var btLEInfo = await DeviceInformation.FindAllAsync(btLESelector);
+            if (btLEInfo.Count() > 0)
             {
-                return;
+                foreach (DeviceInformation device in btLEInfo)
+                {
+                    btLEDevices.Add(device);
+                }
             }
-            else
+            if (btInfo.Count() > 0)
+            {
+                foreach (DeviceInformation device in btInfo)
+                {
+                    btDevices.Add(device);
+                }
+            }
+            if (batteriesInfo.Count() > 0)
             {
 
-                foreach (DeviceInformation device in deviceInfo)
+                foreach (DeviceInformation device in batteriesInfo)
                 {
                     var battery = await Battery.FromIdAsync(device.Id);
                     systemBatteries.Add(battery);
@@ -43,17 +73,132 @@ namespace LowBatteryAlert
             }
         }
 
-        private double GetBatteryLevel(Battery battery)
+        private async Task<double> GetBatteryLevel(BatteryDevice batterySetting)
         {
-            return GetBatteryLevel(battery, out _);
+            switch (batterySetting.Type)
+            {
+                case BatteryDevice.DeviceType.Bluetooth:
+                    return await GetBTBatteryLevel(batterySetting.DeviceId);
+                case BatteryDevice.DeviceType.BluetoothLE:
+                    return await GetBTLEBatteryLevel(batterySetting.DeviceId);
+                default:
+                    return GetSystemBatteryLevel(batterySetting.DeviceId);
+            }
         }
 
-        private double GetBatteryLevel(Battery battery, out BatteryReport report)
+        private async Task<double> GetBTLEBatteryLevel(string deviceId)
         {
-            report = battery.GetReport();
+            int level = -1;
+            BluetoothLEDevice btLEDevice = await BluetoothLEDevice.FromIdAsync(deviceId);
+            if (btLEDevice != null)
+            {
+                if (btLEDevice.ConnectionStatus == BluetoothConnectionStatus.Connected)
+                {
+                    ////get UUID of Services
+                    var services = btLEDevice.GattServices;
+                    if (services != null)
+                    {
+                        foreach (var service in services)
+                        {
+                            //if there is a service thats same like the Battery Service
+                            if (service.Uuid == GattServiceUuids.Battery)
+                            {
+                                var characteristics = service.GetAllCharacteristics();
+                                foreach (var characteristic in characteristics)
+                                {
+                                    if (characteristic.Uuid == GattCharacteristicUuids.BatteryLevel)
+                                    {
+                                        GattReadResult result = await characteristic.ReadValueAsync();
+                                        if (result.Status == GattCommunicationStatus.Success)
+                                        {
+                                            var reader = DataReader.FromBuffer(result.Value);
+                                            byte[] input = new byte[reader.UnconsumedBufferLength];
+                                            reader.ReadBytes(input);
+                                            level = input[0];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    btLEDevice.Dispose();
+                }
+            }
+            return level;
+        }
+
+        private async Task<double> GetBTBatteryLevel(string deviceId)
+        {
+            int level = -1;
+            BluetoothDevice btDevice = await BluetoothDevice.FromIdAsync(deviceId);
+            if (btDevice != null)
+            {
+                //if (btDevice.ConnectionStatus == BluetoothConnectionStatus.Connected)
+                {
+                    RfcommDeviceServicesResult rfcommResult = await btDevice.GetRfcommServicesAsync();
+                    if (rfcommResult.Services.Count == 0)
+                    {
+                        Debug.WriteLine("No services found");
+                    }
+                    if (rfcommResult.Services.Count > 0)
+                    {
+                        for (int i = 0; i < rfcommResult.Services.Count; i++)
+                        {
+                            Debug.WriteLine(String.Format("{0}. {1}", i, rfcommResult.Services[i].ServiceId.Uuid));
+                        }
+                        int selectedService = 0;
+
+                        try
+                        {
+                            StreamSocket socket = new StreamSocket();
+                            await socket.ConnectAsync(rfcommResult.Services[selectedService].ConnectionHostName, rfcommResult.Services[selectedService].ConnectionServiceName);
+                            Debug.WriteLine("Connected to service: " + rfcommResult.Services[selectedService].ServiceId.Uuid);
+
+                            CancellationTokenSource source = new CancellationTokenSource();
+                            CancellationToken cancelToken = source.Token;
+                            Task listenOnChannel = new TaskFactory().StartNew(async () =>
+                            {
+                                while (true)
+                                {
+                                    if (cancelToken.IsCancellationRequested)
+                                    {
+                                        break;
+                                    }
+                                    //read data from the socket
+                                    DataReader reader = new DataReader(socket.InputStream);
+                                    reader.InputStreamOptions = InputStreamOptions.Partial;
+                                    await reader.LoadAsync(1);
+                                    byte[] input = new byte[1];
+                                    reader.ReadBytes(input);
+                                    level = input[0];
+                                    break;
+                                }
+                            }, cancelToken);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.WriteLine("Could not connect to service " + e.Message);
+                        }
+                    }
+                }
+                btDevice.Dispose();
+            }
+            return level;
+        }
+
+        private double GetSystemBatteryLevel(Battery battery)
+        {
+            var report = battery.GetReport();
             var max = Convert.ToDouble(report.FullChargeCapacityInMilliwattHours);
             var level = Convert.ToDouble(report.RemainingCapacityInMilliwattHours);
             return (level / max) * 100d;
+        }
+
+        private double GetSystemBatteryLevel(string deviceId)
+        {
+            var battery = systemBatteries.SingleOrDefault(b => b.DeviceId == deviceId);
+            return GetSystemBatteryLevel(battery);
         }
 
         private async Task LoadBatterySettingsAsync()
@@ -65,9 +210,9 @@ namespace LowBatteryAlert
                 Properties.Settings.Default.Save();
             }
             lstBatteries.Items.Clear();
+            batteryDevices.Clear();
             await GetSytemBatteriesListAsync();
-            batterySettings.Clear();
-            if (systemBatteries.Count == 0)
+            if (systemBatteries.Count == 0 && btDevices.Count == 0 && btLEDevices.Count == 0)
             {
                 lstBatteries.Items.Add("No batteries found");
                 lstBatteries.Enabled = false;
@@ -78,35 +223,87 @@ namespace LowBatteryAlert
             {
                 lstBatteries.Enabled = true;
                 numAlertLevel.Enabled = true;
-                var deserializedAlerts = new Dictionary<string, int>();
+                var deserializedAlerts = new Dictionary<string, BatteryDevice>();
                 if (!string.IsNullOrEmpty(Properties.Settings.Default.Alerts))
+                {
                     foreach (var alert in Properties.Settings.Default.Alerts.Split("|||"))
                     {
                         if (!string.IsNullOrEmpty(alert))
-                            deserializedAlerts.Add(alert.Split(":::")[0], Convert.ToInt32(alert.Split(":::")[1]));
+                        {
+                            var setting = alert.Split(":::");
+                            if (setting.Length < 2) break;
+                            var batteryDevice = new BatteryDevice()
+                            {
+                                DeviceId = setting[0],
+                                Level = Convert.ToInt32(setting[1])
+                            };
+                            if (setting.Length > 2)
+                            {
+                                batteryDevice.Type = setting[2] switch
+                                {
+                                    "bt" => BatteryDevice.DeviceType.Bluetooth,
+                                    "btle" => BatteryDevice.DeviceType.BluetoothLE,
+                                    _ => BatteryDevice.DeviceType.SystemBattery,
+                                };
+                            }
+                            batteryDevice.DeviceName = await GetDeviceName(batteryDevice);
+                            deserializedAlerts.Add(batteryDevice.DeviceName, batteryDevice);
+                        }
                     }
+                }
 
                 foreach (var battery in systemBatteries.OrderBy(b => b.DeviceId))
                 {
-                    lstBatteries.Items.Add(battery.DeviceId);
-                    if (deserializedAlerts.ContainsKey(battery.DeviceId))
-                    {
-                        batterySettings.Add(battery.DeviceId, deserializedAlerts[battery.DeviceId]);
-                    }
-                    else
-                    {
-                        batterySettings.Add(battery.DeviceId, 15);
-                    }
+                    AddDefaultAlert(battery.DeviceId, battery.DeviceId, BatteryDevice.DeviceType.SystemBattery, deserializedAlerts);
+                }
+                foreach (var device in btLEDevices.OrderBy(d => d.Name))
+                {
+                    AddDefaultAlert(device.Id, device.Name, BatteryDevice.DeviceType.BluetoothLE, deserializedAlerts);
+                }
+                foreach (var device in btDevices.OrderBy(d => d.Name))
+                {
+                    AddDefaultAlert(device.Id, device.Name, BatteryDevice.DeviceType.Bluetooth, deserializedAlerts);
                 }
                 lstBatteries.SelectedIndex = 0;
                 chAutoLaunch.Checked = IsAutoLaunchStartup();
             }
         }
 
+        private async Task<string> GetDeviceName(BatteryDevice batteryDevice)
+        {
+            switch (batteryDevice.Type)
+            {
+                case BatteryDevice.DeviceType.Bluetooth:
+                case BatteryDevice.DeviceType.BluetoothLE:
+                    return (await DeviceInformation.CreateFromIdAsync(batteryDevice.DeviceId)).Name;
+                default:
+                    return batteryDevice.DeviceId;
+            }
+        }
+
+        private void AddDefaultAlert(string deviceId, string deviceName, BatteryDevice.DeviceType type, Dictionary<string, BatteryDevice> deserializedAlerts)
+        {
+            var batterySetting = new BatteryDevice()
+            {
+                DeviceName = deviceName,
+                DeviceId = deviceId,
+                Type = type
+            };
+            lstBatteries.Items.Add(batterySetting);
+            if (deserializedAlerts.ContainsKey(deviceId))
+            {
+                batteryDevices.Add(deviceId, deserializedAlerts[deviceId]);
+            }
+            else
+            {
+                batteryDevices.Add(deviceId, batterySetting);
+            }
+        }
+
         private void SaveBatteryLevelSettings()
         {
-            string serializedAlerts = batterySettings.Aggregate("",
-                (acc, next) => acc + next.Key + ":::" + next.Value + "|||");
+            string serializedAlerts = batteryDevices.Aggregate("",
+                (acc, next) => acc + next.Key + ":::" + next.Value.Level + "|||" + next.Value.Type + "|||");
             Properties.Settings.Default.Alerts = serializedAlerts;
             Properties.Settings.Default.Save();
             SetAutoLaunchStartup();
@@ -158,7 +355,7 @@ namespace LowBatteryAlert
             this.Show();
         }
 
-        private void timer_Tick(object sender, EventArgs e)
+        private async void timer_Tick(object sender, EventArgs e)
         {
             bool hasAlert = false;
             PowerStatus powerStatus = SystemInformation.PowerStatus;
@@ -166,26 +363,28 @@ namespace LowBatteryAlert
             int i = 0;
             foreach (var battery in systemBatteries.OrderBy(b => b.DeviceId))
             {
-                var level = GetBatteryLevel(battery);
+                var level = GetSystemBatteryLevel(battery.DeviceId);
                 if (systemBatteries.Count > 1)
                     batteriesLevel += $"Battery {i + 1}: {level.ToString("F0")}%\n";
                 else
                     batteriesLevel = $"{level.ToString("F0")}%\n";
-                if (level <= batterySettings[battery.DeviceId])
-                {
-                    hasAlert = true;
-                    notifyIcon.Icon = Resources.LowBatteryAlert_red;
-
-                    if (!powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
-                    {
-                        notifyIcon.ShowBalloonTip(30000,
-                            "Low Battery Alert", $"Battery level is {level.ToString("F0")}%.",
-                            ToolTipIcon.Warning);
-                    }
-                }
+                hasAlert |= CheckBatteryLevel(battery.DeviceId, level, powerStatus);
                 i++;
             }
-            notifyIcon.BalloonTipText = notifyIcon.Text = Application.ProductName + ":\n" + batteriesLevel;
+            foreach (var device in btLEDevices.OrderBy(d => d.Name))
+            {
+                var level = await GetBTLEBatteryLevel(device.Id);
+                batteriesLevel += $"{device.Name}: {level.ToString("F0")}%\n";
+                hasAlert |= CheckBatteryLevel(device.Id, level);
+            }
+            foreach (var device in btDevices.OrderBy(d => d.Name))
+            {
+                var level = await GetBTBatteryLevel(device.Id);
+                batteriesLevel += $"{device.Name}: {level.ToString("F0")}%\n";
+                hasAlert |= CheckBatteryLevel(device.Id, level);
+            }
+            notifyIcon.BalloonTipText = Application.ProductName + ":\n" + batteriesLevel;
+            notifyIcon.Text = notifyIcon.BalloonTipText.Length > 60 ? notifyIcon.BalloonTipText.Substring(0, 60) + "..." : notifyIcon.BalloonTipText;
             if (!hasAlert)
             {
                 float globalBatteryLevel = powerStatus.BatteryLifePercent;
@@ -199,23 +398,42 @@ namespace LowBatteryAlert
                     notifyIcon.Icon = Resources.LowBatteryAlert_75;
                 else
                     notifyIcon.Icon = Resources.LowBatteryAlert_100;
-
             }
         }
 
-        private void lstBatteries_SelectedIndexChanged(object sender, EventArgs e)
+        private bool CheckBatteryLevel(string deviceId, double level, PowerStatus? powerStatus = null)
         {
-            var battery = systemBatteries.SingleOrDefault(b => b.DeviceId == lstBatteries.SelectedItem?.ToString());
-            if (battery != null)
-                lblCurrentLevel.Text = GetBatteryLevel(battery).ToString("F2") + "%";
+            if (level >= 0 && level <= batteryDevices[deviceId].Level)
+            {
+                notifyIcon.Icon = Resources.LowBatteryAlert_red;
+
+                if (powerStatus != null && !powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
+                {
+                    string message;
+                    if (batteryDevices[deviceId].Type == BatteryDevice.DeviceType.SystemBattery)
+                        message = $"Battery level is {level.ToString("F0")}%";
+                    else
+                        message = $"{batteryDevices[deviceId].DeviceName} battery level is {level.ToString("F0")}%";
+                    notifyIcon.ShowBalloonTip(30000, "Low Battery Alert", message, ToolTipIcon.Warning);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        private async void lstBatteries_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var batterySetting = (BatteryDevice)lstBatteries.SelectedItem;
+
+            lblCurrentLevel.Text = (await GetBatteryLevel(batterySetting)).ToString("F2") + "%";
             if (lstBatteries.SelectedItem != null)
-                numAlertLevel.Value = batterySettings[lstBatteries.SelectedItem.ToString()];
+                numAlertLevel.Value = (decimal)batteryDevices[batterySetting.DeviceId].Level;
         }
 
         private void numAlertLevel_ValueChanged(object sender, EventArgs e)
         {
             if (lstBatteries.SelectedItem != null)
-                batterySettings[lstBatteries.SelectedItem.ToString()] = (int)numAlertLevel.Value;
+                batteryDevices[((BatteryDevice)lstBatteries.SelectedItem).DeviceId].Level = (int)numAlertLevel.Value;
         }
 
         private void contextMenuStrip_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
