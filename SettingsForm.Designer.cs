@@ -30,7 +30,7 @@
         {
             components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsForm));
-            numAlertLevel = new NumericUpDown();
+            numAlerttThreshold = new NumericUpDown();
             label1 = new Label();
             btnCancel = new Button();
             btnOK = new Button();
@@ -44,19 +44,19 @@
             label3 = new Label();
             lblCurrentLevel = new Label();
             chAutoLaunch = new CheckBox();
-            ((System.ComponentModel.ISupportInitialize)numAlertLevel).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)numAlerttThreshold).BeginInit();
             contextMenuStrip.SuspendLayout();
             SuspendLayout();
             // 
-            // numAlertLevel
+            // numAlerttThreshold
             // 
-            numAlertLevel.Location = new Point(216, 106);
-            numAlertLevel.Name = "numAlertLevel";
-            numAlertLevel.Size = new Size(546, 39);
-            numAlertLevel.TabIndex = 2;
-            numAlertLevel.TextAlign = HorizontalAlignment.Center;
-            numAlertLevel.Value = new decimal(new int[] { 10, 0, 0, 0 });
-            numAlertLevel.ValueChanged += numAlertLevel_ValueChanged;
+            numAlerttThreshold.Location = new Point(216, 106);
+            numAlerttThreshold.Name = "numAlerttThreshold";
+            numAlerttThreshold.Size = new Size(546, 39);
+            numAlerttThreshold.TabIndex = 2;
+            numAlerttThreshold.TextAlign = HorizontalAlignment.Center;
+            numAlerttThreshold.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            numAlerttThreshold.ValueChanged += numAlerttThreshold_ValueChanged;
             // 
             // label1
             // 
@@ -181,7 +181,7 @@
             CancelButton = btnCancel;
             ClientSize = new Size(774, 229);
             Controls.Add(chAutoLaunch);
-            Controls.Add(numAlertLevel);
+            Controls.Add(numAlerttThreshold);
             Controls.Add(label1);
             Controls.Add(btnCancel);
             Controls.Add(btnOK);
@@ -197,7 +197,7 @@
             Text = "Low Battery Alert - Settings";
             FormClosing += SettingsForm_FormClosing;
             Load += SettingsForm_Load;
-            ((System.ComponentModel.ISupportInitialize)numAlertLevel).EndInit();
+            ((System.ComponentModel.ISupportInitialize)numAlerttThreshold).EndInit();
             contextMenuStrip.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
@@ -205,7 +205,7 @@
 
         #endregion
 
-        private NumericUpDown numAlertLevel;
+        private NumericUpDown numAlerttThreshold;
         private Label label1;
         private Button btnCancel;
         private Button btnOK;
