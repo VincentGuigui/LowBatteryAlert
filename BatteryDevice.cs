@@ -22,16 +22,16 @@ namespace LowBatteryAlert
             Bluetooth,
             BluetoothLE,
         }
-        public string Name = null;
-        public string Id = null;
+        public string? Name = null;
+        public string? Id = null;
         public int Threshold = 15;
         public int Level = -1;
         public bool Connected = true;
         public DeviceType Type = DeviceType.SystemBattery;
-        private DeviceInformation Device = null;
-        private Battery battery = null;
-        private BluetoothDevice btDevice = null;
-        private BluetoothLEDevice btLEDevice = null;
+        private DeviceInformation? Device = null;
+        private Battery? battery = null;
+        private BluetoothDevice? btDevice = null;
+        private BluetoothLEDevice? btLEDevice = null;
 
         public BatteryDevice()
         {
@@ -69,7 +69,7 @@ namespace LowBatteryAlert
             Debug.WriteLine(device.Properties.First().Value);
         }
 
-        public override string ToString()
+        public override string? ToString()
         {
             return Name;
         }
@@ -281,16 +281,16 @@ namespace LowBatteryAlert
                 if (btLEDevice.ConnectionStatus == BluetoothConnectionStatus.Connected)
                 {
                     ////get UUID of Services
-                    var services = btLEDevice.GattServices;
+                    var services = await btLEDevice.GetGattServicesAsync();
                     if (services != null)
                     {
-                        foreach (var service in services)
+                        foreach (var service in services.Services)
                         {
                             //if there is a service thats same like the Battery Service
                             if (service.Uuid == GattServiceUuids.Battery)
                             {
-                                var characteristics = service.GetAllCharacteristics();
-                                foreach (var characteristic in characteristics)
+                                var characteristics = await service.GetCharacteristicsAsync();
+                                foreach (var characteristic in characteristics.Characteristics)
                                 {
                                     if (characteristic.Uuid == GattCharacteristicUuids.BatteryLevel)
                                     {

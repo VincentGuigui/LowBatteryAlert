@@ -1,13 +1,6 @@
 using LowBatteryAlert.Properties;
 using Microsoft.Win32;
 using System.Diagnostics;
-using System.Reflection.Emit;
-using System.Windows.Forms;
-using Windows.Devices.Bluetooth;
-using Windows.Devices.Enumeration;
-using Windows.Devices.Portable;
-using Windows.UI.Xaml.Documents;
-using Battery = Windows.Devices.Power.Battery;
 
 namespace LowBatteryAlert
 {
@@ -55,21 +48,16 @@ namespace LowBatteryAlert
                             var setting = alert.Split(":::");
                             if (setting.Length < 2) break;
                             string deviceId = setting[0];
-                            int level = Convert.ToInt32(setting[1]);
+                            int threshold = Convert.ToInt32(setting[1]);
                             BatteryDevice.DeviceType type = BatteryDevice.DeviceType.SystemBattery;
-                            if (setting.Length > 2)
-                            {
-                                type = setting[2] switch
-                                {
-                                    "bt" => BatteryDevice.DeviceType.Bluetooth,
-                                    "btle" => BatteryDevice.DeviceType.BluetoothLE,
-                                    _ => BatteryDevice.DeviceType.SystemBattery,
-                                };
-                            }
+                            if (deviceId.ToLower().Contains("bluetoothle"))
+                                type = BatteryDevice.DeviceType.BluetoothLE;
+                            else if (deviceId.ToLower().Contains("bluetooth"))
+                                type = BatteryDevice.DeviceType.Bluetooth;
                             BatteryDevice? device = BatteryDevice.Get(deviceId);
                             if (device != null)
                             {
-                                device.Threshold = level;
+                                device.Threshold = threshold;
                             }
                             else
                             {
@@ -77,7 +65,7 @@ namespace LowBatteryAlert
                                 {
                                     Name = deviceId,
                                     Id = deviceId,
-                                    Threshold = level,
+                                    Threshold = threshold,
                                     Type = type,
                                     Connected = false
                                 };
@@ -94,7 +82,7 @@ namespace LowBatteryAlert
         private void SaveBatteryLevelSettings()
         {
             string serializedAlerts = BatteryDevice.All.Aggregate("",
-                (acc, next) => acc + next.Id + ":::" + next.Threshold + "|||" + next.Type + "|||");
+                (acc, next) => acc + next.Id + ":::" + next.Threshold + "|||");
             Properties.Settings.Default.Alerts = serializedAlerts;
             Properties.Settings.Default.Save();
             SetAutoLaunchStartup();

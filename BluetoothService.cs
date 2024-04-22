@@ -38,7 +38,7 @@ namespace LowBatteryAlert
             new () {Uuid = "931c7e8a-540f-4686-b798-e8df0a2ad9f7", Name = "Bose specific"},
         };
 
-        public string Uuid { get; set; }
+        public string? Uuid { get; set; }
         public string Name { get; set; } = "Unknown";
         public bool HasBattery { get; set; }
     }
