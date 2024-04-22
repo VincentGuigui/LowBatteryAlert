@@ -13,11 +13,6 @@ namespace LowBatteryAlert
 {
     public partial class SettingsForm : Form
     {
-        //Dictionary<string, BatteryDevice> BatteryDevices = new Dictionary<string, BatteryDevice>();
-        //List<Battery> systemBatteries = new List<Battery>();
-        //List<DeviceInformation> btDevices = new List<DeviceInformation>();
-        //List<DeviceInformation> btLEDevices = new List<DeviceInformation>();
-
         public SettingsForm()
         {
             InitializeComponent();
@@ -91,7 +86,7 @@ namespace LowBatteryAlert
                         }
                     }
                 }
-
+                BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
                 lstBatteries.SelectedIndex = 0;
                 chAutoLaunch.Checked = IsAutoLaunchStartup();
             }
@@ -162,23 +157,27 @@ namespace LowBatteryAlert
             foreach (var device in BatteryDevice.All.FindAll(b => b.Connected))
             {
                 device.Level = await device.GetBatteryLevel();
-                if (device.Type == BatteryDevice.DeviceType.SystemBattery)
-                {
-                    sbIdx++;
-                    if (BatteryDevice.All.Count(b => b.Type == BatteryDevice.DeviceType.SystemBattery) > 1)
-                    {
-                        batteriesLevels.Add($"Battery {sbIdx}: {device.Level}%");
-                    }
-                    else if (device.Level >= 0)
-                        batteriesLevels.Add($"Battery: {device.Level}%");
-                }
-                else if (device.Level >= 0)
-                {
-                    batteriesLevels.Add($"{device.Name}: {device.Level}%");
-                }
-                hasAlert |= CheckBatteryLevelAndNotify(device, powerStatus);
             }
             BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
+            foreach (var device in BatteryDevice.All.FindAll(b => b.Connected))
+            {
+                if (device.Level >= 0)
+                {
+                    if (device.Type == BatteryDevice.DeviceType.SystemBattery)
+                    {
+                        sbIdx++;
+                        if (BatteryDevice.All.Count(b => b.Type == BatteryDevice.DeviceType.SystemBattery) > 1)
+                            batteriesLevels.Add($"Battery {sbIdx}: {device.Level}%");
+                        else
+                            batteriesLevels.Add($"Battery: {device.Level}%");
+                    }
+                    else
+                    {
+                        batteriesLevels.Add($"{device.Name}: {device.Level}%");
+                    }
+                    hasAlert |= CheckBatteryLevelAndNotify(device, powerStatus);
+                }
+            }
 
             notifyIcon.BalloonTipText = string.Join("\n", batteriesLevels);
             notifyIcon.Text = notifyIcon.BalloonTipText.Length > 60 ? notifyIcon.BalloonTipText.Substring(0, 60) + "..." : notifyIcon.BalloonTipText;
@@ -202,18 +201,24 @@ namespace LowBatteryAlert
         {
             if (device.Connected && device.Level >= 0 && device.Level <= device.Threshold)
             {
+                string? message = null;
                 notifyIcon.Icon = Resources.LowBatteryAlert_red;
-
-                if (powerStatus != null && !powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
+                if (device.Type == BatteryDevice.DeviceType.SystemBattery)
                 {
-                    string message;
-                    if (device.Type == BatteryDevice.DeviceType.SystemBattery)
+                    if (powerStatus != null && !powerStatus.BatteryChargeStatus.HasFlag(BatteryChargeStatus.Charging))
+                    {
                         message = $"Battery is {device.Level}%";
-                    else
-                        message = $"{device.Name} battery is {device.Level}%";
-                    notifyIcon.ShowBalloonTip(30000, "Low Battery Alert", message, ToolTipIcon.Warning);
+                    }
                 }
-                return true;
+                else
+                {
+                    message = $"{device.Name} battery is {device.Level}%";
+                }
+                if (message != null)
+                {
+                    notifyIcon.ShowBalloonTip(30000, "Low Battery Alert", message, ToolTipIcon.Warning);
+                    return true;
+                }
             }
             return false;
         }
@@ -229,12 +234,12 @@ namespace LowBatteryAlert
                 if (batteryDevice.Level >= 0)
                 {
                     lblCurrentLevel.Text = batteryDevice.Level + "%";
-                    numAlerttThreshold.Enabled= true;
+                    numAlerttThreshold.Enabled = true;
                 }
                 else
                 {
                     lblCurrentLevel.Text = "N/A";
-                    numAlerttThreshold.Enabled= false;
+                    numAlerttThreshold.Enabled = false;
                 }
                 numAlerttThreshold.Value = batteryDevice.Threshold;
                 this.Cursor = Cursors.Default;

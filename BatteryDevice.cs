@@ -25,7 +25,7 @@ namespace LowBatteryAlert
         public string Name = null;
         public string Id = null;
         public int Threshold = 15;
-        public int Level = 15;
+        public int Level = -1;
         public bool Connected = true;
         public DeviceType Type = DeviceType.SystemBattery;
         private DeviceInformation Device = null;
@@ -52,7 +52,7 @@ namespace LowBatteryAlert
             Device = device;
             this.btDevice = btDevice;
             Id = device.Id;
-            Name = device.Name + " (BT)";
+            Name = device.Name;
             Type = DeviceType.Bluetooth;
             Connected = btDevice.ConnectionStatus == BluetoothConnectionStatus.Connected;
             Debug.WriteLine(device.Properties.First().Value);
@@ -63,7 +63,7 @@ namespace LowBatteryAlert
             Device = device;
             this.btLEDevice = btLEDevice;
             Id = device.Id;
-            Name = device.Name + " (BTLE)";
+            Name = device.Name;
             Type = DeviceType.BluetoothLE;
             Connected = btLEDevice.ConnectionStatus == BluetoothConnectionStatus.Connected;
             Debug.WriteLine(device.Properties.First().Value);
@@ -125,7 +125,6 @@ namespace LowBatteryAlert
                     else
                         All.Add(new(device, d));
                 }
-                BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
             }
 
             string btSelector = BluetoothDevice.GetDeviceSelector();
@@ -157,23 +156,24 @@ namespace LowBatteryAlert
                         All.Add(new(device, d));
                 }
             }
+            BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
         }
 
         public static void ReorderBatteriesPerLevelAndSystemFirst()
         {
             All.Sort((a, b) =>
             {
-                if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
-                {
-                    if (a.Level == b.Level)
-                        return a.Name.CompareTo(b.Name);
-                    return a.Level.CompareTo(b.Level);
-                }
-                if (a.Type == DeviceType.SystemBattery)
-                    return -1;
-                if (b.Type == DeviceType.SystemBattery)
-                    return 1;
-                return a.Level.CompareTo(b.Level);
+                //if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
+                //{
+                //    if (a.Level == b.Level)
+                //        return a.Name.CompareTo(b.Name);
+                //    return a.Level.CompareTo(b.Level);
+                //}
+                //if (a.Type == DeviceType.SystemBattery)
+                //    return -1;
+                //if (b.Type == DeviceType.SystemBattery)
+                //    return 1;
+                return -(a.Level.CompareTo(b.Level));
             });
         }
 
@@ -218,20 +218,27 @@ namespace LowBatteryAlert
                     if (rfcommResult.Services.Count == 0)
                     {
                         Debug.WriteLine("No services found for " + Device.Name + ". ");
+                        Level = level;
+                        return level;
                     }
-                    else
-                    {
-                        // check if the device has battery level service
-                        RfcommDeviceService selectedService = rfcommResult.Services.First(s => BluetoothService.All.Any(bs => bs.HasBattery && bs.Uuid == s.ServiceId.Uuid.ToString()));
+                    // check if the device has battery level service
+                    RfcommDeviceService selectedService = rfcommResult.Services.First(s => BluetoothService.All.Any(bs => bs.HasBattery && bs.Uuid == s.ServiceId.Uuid.ToString()));
 
-                        try
+                    if (selectedService == null)
+                    {
+                        Debug.WriteLine("No battery service found for " + Device.Name);
+                        Level = level;
+                        return level;
+                    }
+                    try
+                    {
+                        using (StreamSocket socket = new StreamSocket())
                         {
-                            StreamSocket socket = new StreamSocket();
-                            await socket.ConnectAsync(selectedService.ConnectionHostName, selectedService.ConnectionServiceName);
+                            await socket.ConnectAsync(selectedService.ConnectionHostName, selectedService.ConnectionServiceName, SocketProtectionLevel.BluetoothEncryptionAllowNullAuthentication);
                             Debug.WriteLine("Connected to service for " + Device.Name + ": " + selectedService.ServiceId.Uuid);
                             CancellationTokenSource source = new CancellationTokenSource();
                             CancellationToken cancelToken = source.Token;
-                            Task listenOnChannel = new TaskFactory().StartNew(async () =>
+                            Task listenOnChannel = await new TaskFactory().StartNew(async () =>
                             {
                                 while (true)
                                 {
@@ -243,17 +250,19 @@ namespace LowBatteryAlert
                                     break;
                                 }
                             }, cancelToken);
-                            listenOnChannel.Wait(4000);
+                            listenOnChannel.Wait(3000);
                             selectedService.Dispose();
                             socket.Dispose();
+                            return Level;
                         }
-                        catch (Exception e)
-                        {
-                            Debug.WriteLine("Could not connect to service for " + Device.Name + ". " + e.Message);
-                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.WriteLine("Could not connect to service for " + Device.Name + ". " + e.Message);
                     }
                 }
             }
+            Level = level;
             return level;
         }
 
@@ -299,48 +308,53 @@ namespace LowBatteryAlert
 
         public async Task Read(StreamSocket socket, CancellationTokenSource source)
         {
+            //https://radekp.github.io/qtmoko/api/modememulator-controlandstatus.html
+            //https://developer.apple.com/accessories/Accessory-Design-Guidelines.pdf
             IBuffer buffer = new Windows.Storage.Streams.Buffer(1024);
             uint bytesRead = 1024;
             IBuffer result;
-            try
+            while (bytesRead > 0)
             {
-                result = await socket.InputStream.ReadAsync(buffer, bytesRead, InputStreamOptions.Partial);
-                await Write(socket, "OK");
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Could not connect to service " + e.Message);
-                source.Cancel();
-                return;
-            }
-
-            DataReader reader = DataReader.FromBuffer(result);
-            var output = reader.ReadString(result.Length);
-
-            if (output.Length != 0)
-            {
-                Console.WriteLine("Received :" + output.Replace("\r", " "));
-                if (output.Contains("IPHONEACCEV"))
+                try
                 {
-                    try
+                    result = await socket.InputStream.ReadAsync(buffer, bytesRead, InputStreamOptions.Partial);
+                    await Write(socket, "OK");
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine("Could not read from service " + e.Message);
+                    source.Cancel();
+                    return;
+                }
+
+                DataReader reader = DataReader.FromBuffer(result);
+                var command = reader.ReadString(result.Length);
+                if (command.Length != 0)
+                {
+                    string[] batCmds = { "CBC", "IPHONEACCEV" };
+                    foreach (string batCmd in batCmds)
                     {
-                        var batteryCmd = output.Substring(output.IndexOf("IPHONEACCEV"));
-                        Console.WriteLine("Battery level :" + (Int32.Parse(batteryCmd.Substring(batteryCmd.LastIndexOf(",") + 1)) + 1) * 10);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Could not retrieve " + e.Message);
+                        if (command.Contains(batCmd))
+                        {
+                            try
+                            {
+                                var battery = command.Substring(command.IndexOf(batCmd));
+                                if (batCmd == "CBC")
+                                    Level = Int32.Parse(battery.Substring(battery.LastIndexOf(",") + 1));
+                                else
+                                    Level = (Int32.Parse(battery.Substring(battery.LastIndexOf(",") + 1)) + 1) * 10;
+                                source.Cancel();
+                                return;
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.WriteLine("Could not read battery from " + command + "." + e.Message);
+                            }
+                        }
                     }
                 }
-                else
-                {
-                    Console.WriteLine("Not a IPHONEACCEV");
-                }
             }
-            else
-            {
-                Console.WriteLine("No data received");
-            }
+            Debug.WriteLine("No BTAT commands received");
             source.Cancel();
         }
 
