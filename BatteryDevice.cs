@@ -156,27 +156,34 @@ namespace LowBatteryAlert
                         All.Add(new(device, d));
                 }
             }
-            BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
+            ReorderBatteriesPerLevelAndSystemFirst();
         }
 
-        public static void ReorderBatteriesPerLevelAndSystemFirst()
+        public static async Task RefreshBatteriesLevel()
+        {
+            foreach (var device in All.FindAll(b => b.Connected))
+            {
+                device.Level = await device.GetBatteryLevel();
+            }
+            ReorderBatteriesPerLevelAndSystemFirst();
+        }
+
+        private static void ReorderBatteriesPerLevelAndSystemFirst()
         {
             All.Sort((a, b) =>
             {
-                //if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
-                //{
-                //    if (a.Level == b.Level)
-                //        return a.Name.CompareTo(b.Name);
-                //    return a.Level.CompareTo(b.Level);
-                //}
-                //if (a.Type == DeviceType.SystemBattery)
-                //    return -1;
-                //if (b.Type == DeviceType.SystemBattery)
-                //    return 1;
-                return -(a.Level.CompareTo(b.Level));
+                if (a.Level == b.Level)
+                {
+                    if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
+                        return a.Name.CompareTo(b.Name);
+                    if (a.Type == DeviceType.SystemBattery)
+                        return -1;
+                    if (b.Type == DeviceType.SystemBattery)
+                        return 1;
+                }
+                return (a.Level.CompareTo(b.Level));
             });
         }
-
         #endregion
 
         public async Task<int> GetBatteryLevel()

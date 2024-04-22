@@ -86,7 +86,6 @@ namespace LowBatteryAlert
                         }
                     }
                 }
-                BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
                 lstBatteries.SelectedIndex = 0;
                 chAutoLaunch.Checked = IsAutoLaunchStartup();
             }
@@ -154,11 +153,7 @@ namespace LowBatteryAlert
             PowerStatus powerStatus = SystemInformation.PowerStatus;
             List<string> batteriesLevels = new List<string>();
             int sbIdx = 0;
-            foreach (var device in BatteryDevice.All.FindAll(b => b.Connected))
-            {
-                device.Level = await device.GetBatteryLevel();
-            }
-            BatteryDevice.ReorderBatteriesPerLevelAndSystemFirst();
+            await BatteryDevice.RefreshBatteriesLevel();
             foreach (var device in BatteryDevice.All.FindAll(b => b.Connected))
             {
                 if (device.Level >= 0)

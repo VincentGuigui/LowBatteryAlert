@@ -12,10 +12,18 @@
     <ApplicationIcon>LowBatteryAlert_100.ico</ApplicationIcon>
     <UseWPF>False</UseWPF>
     <Title>Low Battery Alert</Title>
-    <PackageIcon>LowBatteryAlert.png</PackageIcon>
-    <AssemblyVersion>1.1.0</AssemblyVersion>
-    <FileVersion>1.1.0</FileVersion>
-    <Version>1.1.0</Version>
+    <PackageIcon>LowBatteryAlert_100.png</PackageIcon>
+    <AssemblyVersion>1.2.0</AssemblyVersion>
+    <FileVersion>1.2.0</FileVersion>
+    <Version>1.2.0</Version>
+    <PackageTags>Battery;Windows;Alert;Notification</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/vincentguigui/LowBatteryAlert/</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/vincentguigui/LowBatteryAlert/</PackageProjectUrl>
+    <Copyright>Vincent Guigui</Copyright>
+    <Description>LowBatteryAlert is an utility to create individual "low battery" notifications for all connected batteries (Bluetooth devices or multiple computer batteries like Surface Book).</Description>
+    <StartupObject>LowBatteryAlert.Program</StartupObject>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -62,9 +70,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="LowBatteryAlert_100.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
     <None Update="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
 
