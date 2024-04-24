@@ -164,14 +164,18 @@ namespace LowBatteryAlert
             SortForList();
         }
 
+        private static bool _refreshing = false;
         public static async Task RefreshBatteriesLevel()
         {
+            if (_refreshing) return;
+            _refreshing = true;
             foreach (var device in All.FindAll(b => b.Connected))
             {
                 device.Level = await device.GetBatteryLevel();
                 Debug.WriteLine(device.Name + ": " + device.Level);
             }
             SortForAlert();
+            _refreshing = false;
         }
 
         private static void SortForAlert()
@@ -179,14 +183,19 @@ namespace LowBatteryAlert
             All.Sort((a, b) =>
             {
                 if (a.Level == -1) return 1;
+                if (b.Level == -1) return -1;
                 if (a.Level == b.Level)
                 {
-                    if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
+                    if (a.Level == 100)
+                    {
+                        if (a.Type == b.Type && b.Type == DeviceType.SystemBattery)
+                            return a.Name.CompareTo(b.Name);
+                        if (a.Type == DeviceType.SystemBattery)
+                            return -1;
+                        if (b.Type == DeviceType.SystemBattery)
+                            return 1;
                         return a.Name.CompareTo(b.Name);
-                    if (a.Type == DeviceType.SystemBattery)
-                        return -1;
-                    if (b.Type == DeviceType.SystemBattery)
-                        return 1;
+                    }
                 }
                 return (a.Level.CompareTo(b.Level));
             });

@@ -94,7 +94,7 @@
             // timer
             // 
             timer.Enabled = true;
-            timer.Interval = 60000;
+            timer.Interval = 120000;
             timer.Tick += timer_Tick;
             // 
             // notifyIcon
