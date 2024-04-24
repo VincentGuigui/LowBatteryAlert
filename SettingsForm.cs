@@ -61,14 +61,7 @@ namespace LowBatteryAlert
                             }
                             else
                             {
-                                var batteryDevice = new BatteryDevice()
-                                {
-                                    Name = deviceId,
-                                    Id = deviceId,
-                                    Threshold = threshold,
-                                    Type = type,
-                                    Connected = false
-                                };
+                                var batteryDevice = new BatteryDevice(deviceId, deviceId, type, false, threshold);
                                 BatteryDevice.All.Add(batteryDevice);
                             }
                         }
@@ -91,19 +84,22 @@ namespace LowBatteryAlert
 
         private void SetAutoLaunchStartup()
         {
-            RegistryKey rk = Registry.CurrentUser.OpenSubKey
-                ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
-
+            RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            if (rk == null) return;
             if (chAutoLaunch.Checked)
-                rk.SetValue(Application.ProductName, Process.GetCurrentProcess().MainModule.FileName);
-            else
+            {
+                ProcessModule? module = Process.GetCurrentProcess().MainModule;
+                if (module != null)
+                    rk.SetValue(Application.ProductName, module.FileName);
+            }
+            else if (Application.ProductName != null)
                 rk.DeleteValue(Application.ProductName, false);
         }
 
         private bool IsAutoLaunchStartup()
         {
-            RegistryKey rk = Registry.CurrentUser.OpenSubKey
-                ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            if (rk == null) return false;
             return rk.GetValue(Application.ProductName) != null;
         }
 
@@ -139,31 +135,19 @@ namespace LowBatteryAlert
         {
             bool hasAlert = false;
             PowerStatus powerStatus = SystemInformation.PowerStatus;
-            List<string> batteriesLevels = new List<string>();
-            int sbIdx = 0;
+            List<string> batteriesLevels = new();
             await BatteryDevice.RefreshBatteriesLevel();
             foreach (var device in BatteryDevice.All.FindAll(b => b.Connected))
             {
                 if (device.Level >= 0)
                 {
-                    if (device.Type == BatteryDevice.DeviceType.SystemBattery)
-                    {
-                        sbIdx++;
-                        if (BatteryDevice.All.Count(b => b.Type == BatteryDevice.DeviceType.SystemBattery) > 1)
-                            batteriesLevels.Add($"Battery {sbIdx}: {device.Level}%");
-                        else
-                            batteriesLevels.Add($"Battery: {device.Level}%");
-                    }
-                    else
-                    {
-                        batteriesLevels.Add($"{device.Name}: {device.Level}%");
-                    }
+                    batteriesLevels.Add($"{device.ShortName}: {device.Level}%");
                     hasAlert |= CheckBatteryLevelAndNotify(device, powerStatus);
                 }
             }
 
             notifyIcon.BalloonTipText = string.Join("\n", batteriesLevels);
-            notifyIcon.Text = notifyIcon.BalloonTipText.Length > 60 ? notifyIcon.BalloonTipText.Substring(0, 60) + "..." : notifyIcon.BalloonTipText;
+            notifyIcon.Text = notifyIcon.BalloonTipText.Length > 60 ? notifyIcon.BalloonTipText[..60] + "..." : notifyIcon.BalloonTipText;
             if (!hasAlert)
             {
                 float globalBatteryLevel = powerStatus.BatteryLifePercent;

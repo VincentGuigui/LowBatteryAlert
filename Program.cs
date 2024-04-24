@@ -11,8 +11,8 @@ namespace LowBatteryAlert
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             //ApplicationConfiguration.Initialize();
-            SettingsForm frm = new SettingsForm();
-            frm.SettingsForm_Load(null, null);
+            SettingsForm frm = new();
+            frm.SettingsForm_Load(frm, new EventArgs());
             Application.Run();
         }
     }

@@ -37,7 +37,7 @@
   <ItemGroup>
     <PackageReference Condition="'$(TargetFramework)' == 'netcoreapp3.1'"
                      Include="Microsoft.Windows.SDK.Contracts"
-                     Version="10.0.19041.0" />
+                     Version="10.0.19041.1" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
